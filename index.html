@@ -1,0 +1,506 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IoT Sensor Dashboard</title>
+  <meta name="description" content="Real-time IoT sensor monitoring dashboard untuk suhu dan kelembapan" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:       #070b14;
+      --bg-surface:    #0d1526;
+      --bg-card:       rgba(15, 25, 50, 0.75);
+      --border:        rgba(99, 179, 237, 0.12);
+      --border-glow:   rgba(99, 179, 237, 0.35);
+      --accent-blue:   #63b3ed;
+      --accent-cyan:   #22d3ee;
+      --accent-teal:   #2dd4bf;
+      --accent-orange: #fb923c;
+      --accent-rose:   #f87171;
+      --text-primary:  #e2e8f0;
+      --text-secondary:#94a3b8;
+      --text-muted:    #475569;
+      --green:         #4ade80;
+      --red:           #f87171;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(34,211,238,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(99,179,237,0.06) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(45,212,191,0.04) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topnav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      background: rgba(7,11,20,0.6);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+
+    .brand-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, #22d3ee, #63b3ed);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: #070b14;
+      box-shadow: 0 0 20px rgba(34,211,238,0.4);
+    }
+
+    .brand-title { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    .brand-title span { color: var(--accent-cyan); }
+
+    .nav-status {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--text-secondary);
+      background: rgba(74,222,128,0.08);
+      border: 1px solid rgba(74,222,128,0.2);
+      padding: 6px 14px; border-radius: 20px;
+    }
+
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+    .status-dot.offline { background: var(--red); box-shadow: 0 0 8px var(--red); animation: none; }
+    .status-dot.online  { animation: breathe 2s ease-in-out infinite; }
+
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50%       { transform: scale(1.4); opacity: 0.6; }
+    }
+
+    .refresh-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .content { flex: 1; padding: 32px; max-width: 1200px; margin: 0 auto; width: 100%; }
+
+    .page-header { margin-bottom: 36px; }
+
+    .page-header h1 {
+      font-size: 32px; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #e2e8f0 0%, #22d3ee 50%, #63b3ed 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; margin-bottom: 6px;
+    }
+
+    .page-header p { font-size: 14px; color: var(--text-muted); letter-spacing: 0.3px; }
+    .page-header p span { color: var(--accent-teal); }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 18px; padding: 26px;
+      backdrop-filter: blur(14px);
+      position: relative; overflow: hidden;
+      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    }
+
+    .card::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      border-radius: 18px 18px 0 0; opacity: 0.7;
+      transition: opacity 0.3s;
+    }
+
+    .card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px var(--border-glow); border-color: var(--border-glow); }
+    .card:hover::before { opacity: 1; }
+
+    .card-temp::before   { background: linear-gradient(90deg, #fb923c, #f87171); }
+    .card-humid::before  { background: linear-gradient(90deg, #22d3ee, #63b3ed); }
+    .card-status::before { background: linear-gradient(90deg, #4ade80, #2dd4bf); }
+
+    .card-orb {
+      position: absolute; width: 120px; height: 120px;
+      border-radius: 50%; bottom: -30px; right: -30px;
+      filter: blur(35px); opacity: 0.3; pointer-events: none;
+    }
+
+    .card-temp  .card-orb  { background: #fb923c; }
+    .card-humid .card-orb  { background: #22d3ee; }
+    .card-status .card-orb { background: #4ade80; }
+
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+
+    .card-label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; font-weight: 600; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+    .card-label i { font-size: 13px; }
+
+    .card-badge {
+      font-size: 11px; font-weight: 600;
+      padding: 4px 10px; border-radius: 20px;
+      border: 1px solid; letter-spacing: 0.3px;
+    }
+
+    .badge-orange { color: #fb923c; border-color: rgba(251,146,60,0.3);  background: rgba(251,146,60,0.08); }
+    .badge-blue   { color: #63b3ed; border-color: rgba(99,179,237,0.3);  background: rgba(99,179,237,0.08); }
+    .badge-green  { color: #4ade80; border-color: rgba(74,222,128,0.3);  background: rgba(74,222,128,0.08); }
+    .badge-red    { color: #f87171; border-color: rgba(248,113,113,0.3); background: rgba(248,113,113,0.08); }
+    .badge-yellow { color: #facc15; border-color: rgba(250,204,21,0.3);  background: rgba(250,204,21,0.08); }
+
+    .card-value { font-size: 52px; font-weight: 800; letter-spacing: -2px; line-height: 1; margin-bottom: 10px; }
+    .card-temp  .card-value  { color: #fb923c; }
+    .card-humid .card-value  { color: #63b3ed; }
+    .card-status .card-value { font-size: 28px; color: var(--text-primary); }
+
+    .card-sub { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+
+    .progress-wrap { margin-top: 18px; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+    .progress-bar { height: 5px; border-radius: 99px; background: rgba(255,255,255,0.07); overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 99px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
+    .fill-orange { background: linear-gradient(90deg, #fb923c, #f87171); }
+    .fill-blue   { background: linear-gradient(90deg, #22d3ee, #63b3ed); }
+
+    .device-info { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+
+    .device-row {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; padding: 8px 12px; border-radius: 8px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .device-row-key { color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+    .device-row-val { color: var(--text-primary); font-weight: 600; }
+
+    .info-bar { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+
+    .info-chip {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 20px;
+      display: flex; align-items: center; gap: 14px;
+      transition: background 0.2s;
+    }
+    .info-chip:hover { background: rgba(255,255,255,0.05); }
+
+    .info-chip-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    .icon-blue   { background: rgba(99,179,237,0.12);  color: #63b3ed; }
+    .icon-teal   { background: rgba(45,212,191,0.12);  color: #2dd4bf; }
+    .icon-purple { background: rgba(167,139,250,0.12); color: #a78bfa; }
+
+    .info-chip-text { flex: 1; min-width: 0; }
+    .info-chip-text .label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 2px; }
+    .info-chip-text .value { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .footer {
+      padding: 16px 32px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; color: var(--text-muted);
+    }
+
+    @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .card { animation: fadeSlideUp 0.5s ease both; }
+    .card:nth-child(1) { animation-delay: 0.05s; }
+    .card:nth-child(2) { animation-delay: 0.15s; }
+    .card:nth-child(3) { animation-delay: 0.25s; }
+    .info-chip { animation: fadeSlideUp 0.5s ease both; }
+    .info-chip:nth-child(1) { animation-delay: 0.35s; }
+    .info-chip:nth-child(2) { animation-delay: 0.42s; }
+    .info-chip:nth-child(3) { animation-delay: 0.49s; }
+
+    @media (max-width: 900px) {
+      .cards-grid { grid-template-columns: 1fr 1fr; }
+      .card-status { grid-column: 1 / -1; }
+      .info-bar { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 580px) {
+      .cards-grid { grid-template-columns: 1fr; }
+      .card-status { grid-column: auto; }
+      .content { padding: 16px; }
+      .topnav { padding: 14px 16px; }
+      .footer { flex-direction: column; gap: 6px; text-align: center; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <nav class="topnav">
+      <div class="brand">
+        <div class="brand-icon"><i class="fas fa-microchip"></i></div>
+        <div class="brand-title">IoT<span>Dashboard</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="refresh-badge">
+          <i class="fas fa-sync-alt" id="sync-icon"></i>
+          <span id="sync-label">Memuat...</span>
+        </div>
+        <div class="nav-status">
+          <div class="status-dot online" id="main-dot"></div>
+          <span id="main-status-text">Online</span>
+        </div>
+      </div>
+    </nav>
+
+    <div class="content">
+
+      <header class="page-header">
+        <h1>Live Sensor Monitor</h1>
+        <p>Pembaruan otomatis setiap detik &nbsp;&bull;&nbsp; <span id="last-updated">Menunggu data...</span></p>
+      </header>
+
+      <section class="cards-grid">
+
+        <div class="card card-temp">
+          <div class="card-orb"></div>
+          <div class="card-header">
+            <div class="card-label">
+              <i class="fas fa-thermometer-half" style="color:#fb923c;"></i>
+              Suhu
+            </div>
+            <div class="card-badge badge-orange" id="temp-badge">--</div>
+          </div>
+          <div class="card-value" id="temperature">--</div>
+          <div class="card-sub">
+            <i class="far fa-clock"></i>
+            <span id="timestamp-temp">Menunggu sensor...</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-label"><span>0 C</span><span>60 C</span></div>
+            <div class="progress-bar">
+              <div class="progress-fill fill-orange" id="temp-bar" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-humid">
+          <div class="card-orb"></div>
+          <div class="card-header">
+            <div class="card-label">
+              <i class="fas fa-droplet" style="color:#63b3ed;"></i>
+              Kelembapan
+            </div>
+            <div class="card-badge badge-blue" id="humid-badge">--</div>
+          </div>
+          <div class="card-value" id="humidity">--</div>
+          <div class="card-sub">
+            <i class="fas fa-info-circle"></i>
+            Rentang ideal: 40-70%
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-label"><span>0%</span><span>100%</span></div>
+            <div class="progress-bar">
+              <div class="progress-fill fill-blue" id="humid-bar" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-status">
+          <div class="card-orb"></div>
+          <div class="card-header">
+            <div class="card-label">
+              <i class="fas fa-satellite-dish" style="color:#4ade80;"></i>
+              Status Perangkat
+            </div>
+            <div class="card-badge badge-green" id="device-badge">Online</div>
+          </div>
+          <div class="card-value">ESP32</div>
+          <div class="device-info">
+            <div class="device-row">
+              <span class="device-row-key"><i class="fas fa-code-branch"></i> Firmware</span>
+              <span class="device-row-val">v2.1.8</span>
+            </div>
+            <div class="device-row">
+              <span class="device-row-key"><i class="fas fa-wifi"></i> Koneksi</span>
+              <span class="device-row-val" id="conn-status">REST API</span>
+            </div>
+            <div class="device-row">
+              <span class="device-row-key"><i class="fas fa-clock"></i> Interval</span>
+              <span class="device-row-val">1 detik</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <div class="info-bar">
+        <div class="info-chip">
+          <div class="info-chip-icon icon-blue"><i class="fas fa-database"></i></div>
+          <div class="info-chip-text">
+            <div class="label">DATABASE</div>
+            <div class="value">iot_data - datasensor</div>
+          </div>
+        </div>
+        <div class="info-chip">
+          <div class="info-chip-icon icon-teal"><i class="fas fa-link"></i></div>
+          <div class="info-chip-text">
+            <div class="label">ENDPOINT</div>
+            <div class="value">read.php</div>
+          </div>
+        </div>
+        <div class="info-chip">
+          <div class="info-chip-icon icon-purple"><i class="fas fa-bolt"></i></div>
+          <div class="info-chip-text">
+            <div class="label">TOTAL FETCH</div>
+            <div class="value"><span id="fetch-count">0</span> permintaan</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <footer class="footer">
+      <div>IoT Sensor Dashboard &bull; Real-time Monitoring</div>
+      <div id="footer-time">--</div>
+    </footer>
+
+  </div>
+
+  <script>
+    let lastUpdateTime = Date.now();
+    const OFFLINE_THRESHOLD = 10000;
+    let fetchCount = 0;
+
+    function getTempBadge(val) {
+      if (val < 10)  return { text: 'Sangat Dingin', cls: 'badge-blue' };
+      if (val < 20)  return { text: 'Dingin',        cls: 'badge-blue' };
+      if (val < 27)  return { text: 'Normal',        cls: 'badge-green' };
+      if (val < 35)  return { text: 'Hangat',        cls: 'badge-orange' };
+      return               { text: 'Panas',          cls: 'badge-red' };
+    }
+
+    function getHumidBadge(val) {
+      if (val < 30)  return { text: 'Terlalu Kering', cls: 'badge-red' };
+      if (val < 40)  return { text: 'Rendah',         cls: 'badge-yellow' };
+      if (val <= 70) return { text: 'Stabil',         cls: 'badge-blue' };
+      if (val <= 80) return { text: 'Tinggi',         cls: 'badge-yellow' };
+      return               { text: 'Terlalu Lembap',  cls: 'badge-red' };
+    }
+
+    function setBadge(el, info) {
+      el.className = 'card-badge ' + info.cls;
+      el.textContent = info.text;
+    }
+
+    function setDeviceStatus(online) {
+      const dot   = document.getElementById('main-dot');
+      const txt   = document.getElementById('main-status-text');
+      const badge = document.getElementById('device-badge');
+      const conn  = document.getElementById('conn-status');
+      if (online) {
+        dot.className = 'status-dot online';
+        txt.textContent = 'Online';
+        badge.className = 'card-badge badge-green';
+        badge.textContent = 'Online';
+        conn.textContent = 'REST API';
+      } else {
+        dot.className = 'status-dot offline';
+        txt.textContent = 'Offline';
+        badge.className = 'card-badge badge-red';
+        badge.textContent = 'Offline';
+        conn.textContent = 'Tidak Terhubung';
+      }
+    }
+
+    function formatTime(dateStr) {
+      try {
+        const d = dateStr ? new Date(dateStr) : new Date();
+        return d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      } catch(e) { return dateStr || '--'; }
+    }
+
+    function tickClock() {
+      const now = new Date();
+      document.getElementById('footer-time').textContent =
+        now.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) +
+        '  ' + now.toLocaleTimeString('id-ID');
+    }
+    setInterval(tickClock, 1000);
+    tickClock();
+
+    setInterval(function() {
+      var isOnline = (Date.now() - lastUpdateTime) < OFFLINE_THRESHOLD;
+      setDeviceStatus(isOnline);
+    }, 1000);
+
+    async function fetchData() {
+      var syncIcon = document.getElementById('sync-icon');
+      var syncLabel = document.getElementById('sync-label');
+      syncIcon.classList.add('spin');
+      try {
+        var res = await fetch('read.php?_=' + Date.now());
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+        if (data.error) throw new Error(data.error);
+        fetchCount++;
+        lastUpdateTime = Date.now();
+        var tempVal  = parseFloat(data.temperature);
+        var humidVal = parseFloat(data.humidity);
+        document.getElementById('temperature').textContent = data.temperature;
+        document.getElementById('temp-bar').style.width = Math.min(tempVal / 60 * 100, 100) + '%';
+        setBadge(document.getElementById('temp-badge'), getTempBadge(tempVal));
+        document.getElementById('humidity').textContent = data.humidity;
+        document.getElementById('humid-bar').style.width = Math.min(humidVal, 100) + '%';
+        setBadge(document.getElementById('humid-badge'), getHumidBadge(humidVal));
+        var timeStr = formatTime(data.timestamp);
+        document.getElementById('timestamp-temp').textContent = 'Diperbarui: ' + timeStr;
+        document.getElementById('last-updated').textContent = 'Terakhir diperbarui: ' + timeStr;
+        document.getElementById('fetch-count').textContent = fetchCount;
+        setDeviceStatus(true);
+        syncLabel.textContent = 'Sinkron';
+      } catch(err) {
+        console.error('Fetch error:', err);
+        syncLabel.textContent = 'Gagal';
+        setDeviceStatus(false);
+      } finally {
+        syncIcon.classList.remove('spin');
+      }
+    }
+
+    setInterval(fetchData, 1000);
+    fetchData();
+  </script>
+
+</body>
+</html>
